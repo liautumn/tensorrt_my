@@ -326,63 +326,6 @@ namespace yolo {
                 matrix_2_3, norm);
     }
 
-    static __global__ void decode_single_mask_kernel(int left, int top, float *mask_weights,
-                                                     float *mask_predict, int mask_width,
-                                                     int mask_height, unsigned char *mask_out,
-                                                     int mask_dim, int out_width, int out_height) {
-        // mask_predict to mask_out
-        // mask_weights @ mask_predict
-        int dx = blockDim.x * blockIdx.x + threadIdx.x;
-        int dy = blockDim.y * blockIdx.y + threadIdx.y;
-        if (dx >= out_width || dy >= out_height) return;
-
-        int sx = left + dx;
-        int sy = top + dy;
-        if (sx < 0 || sx >= mask_width || sy < 0 || sy >= mask_height) {
-            mask_out[dy * out_width + dx] = 0;
-            return;
-        }
-
-        float cumprod = 0;
-        for (int ic = 0; ic < mask_dim; ++ic) {
-            float cval = mask_predict[(ic * mask_height + sy) * mask_width + sx];
-            float wval = mask_weights[ic];
-            cumprod += cval * wval;
-        }
-
-        float alpha = 1.0f / (1.0f + exp(-cumprod));
-        mask_out[dy * out_width + dx] = alpha * 255;
-    }
-
-    static void decode_single_mask(float left, float top, float *mask_weights, float *mask_predict,
-                                   int mask_width, int mask_height, unsigned char *mask_out,
-                                   int mask_dim, int out_width, int out_height, cudaStream_t stream) {
-        // mask_weights is mask_dim(32 element) gpu pointer
-        dim3 grid((out_width + 31) / 32, (out_height + 31) / 32);
-        dim3 block(32, 32);
-
-        decode_single_mask_kernel<<<grid, block, 0, stream>>>(
-                left, top, mask_weights, mask_predict, mask_width, mask_height, mask_out, mask_dim, out_width,
-                out_height);
-    }
-
-    const char *type_name(Type type) {
-        switch (type) {
-            case Type::V5:
-                return "YoloV5";
-            case Type::V3:
-                return "YoloV3";
-            case Type::V7:
-                return "YoloV7";
-            case Type::X:
-                return "YoloX";
-            case Type::V8:
-                return "YoloV8";
-            default:
-                return "Unknow";
-        }
-    }
-
     struct AffineMatrix {
         float i2d[6];  // image to dst(network), 2x3 matrix
         float d2i[6];  // dst to image, 2x3 matrix
