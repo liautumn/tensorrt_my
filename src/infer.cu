@@ -1,7 +1,7 @@
 
 #include <NvInfer.h>
 #include <cuda_runtime.h>
-#include <stdarg.h>
+#include <cstdarg>
 
 #include <fstream>
 #include <numeric>
@@ -10,10 +10,45 @@
 
 #include "infer.h"
 
-using namespace std;
-using namespace nvinfer1;
-
 namespace trt {
+
+    using namespace std;
+    using namespace nvinfer1;
+
+#define checkRuntime(call)                                                                 \
+  do {                                                                                     \
+    auto ___call__ret_code__ = (call);                                                     \
+    if (___call__ret_code__ != cudaSuccess) {                                              \
+      INFO("CUDA Runtime error💥 %s # %s, code = %s [ %d ]", #call,                        \
+           cudaGetErrorString(___call__ret_code__), cudaGetErrorName(___call__ret_code__), \
+           ___call__ret_code__);                                                           \
+      abort();                                                                             \
+    }                                                                                      \
+  } while (0)
+
+#define checkKernel(...)                 \
+  do {                                   \
+    { (__VA_ARGS__); }                   \
+    checkRuntime(cudaPeekAtLastError()); \
+  } while (0)
+
+#define Assert(op)                 \
+  do {                             \
+    bool cond = !(!(op));          \
+    if (!cond) {                   \
+      INFO("Assert failed, " #op); \
+      abort();                     \
+    }                              \
+  } while (0)
+
+#define Assertf(op, ...)                             \
+  do {                                               \
+    bool cond = !(!(op));                            \
+    if (!cond) {                                     \
+      INFO("Assert failed, " #op " : " __VA_ARGS__); \
+      abort();                                       \
+    }                                                \
+  } while (0)
 
     static string file_name(const string &path, bool include_suffix) {
         if (path.empty()) return "";
@@ -55,26 +90,26 @@ namespace trt {
     }
 
     Timer::Timer() {
-        cudaEventCreate((cudaEvent_t *) &start_);
-        cudaEventCreate((cudaEvent_t *) &stop_);
+        checkRuntime(cudaEventCreate((cudaEvent_t *) &start_));
+        checkRuntime(cudaEventCreate((cudaEvent_t *) &stop_));
     }
 
     Timer::~Timer() {
-        cudaEventDestroy((cudaEvent_t) start_);
-        cudaEventDestroy((cudaEvent_t) stop_);
+        checkRuntime(cudaEventDestroy((cudaEvent_t) start_));
+        checkRuntime(cudaEventDestroy((cudaEvent_t) stop_));
     }
 
     void Timer::start(void *stream) {
         stream_ = stream;
-        cudaEventRecord((cudaEvent_t) start_, (cudaStream_t) stream_);
+        checkRuntime(cudaEventRecord((cudaEvent_t) start_, (cudaStream_t) stream_));
     }
 
     float Timer::stop(const char *prefix, bool print) {
-        cudaEventRecord((cudaEvent_t) stop_, (cudaStream_t) stream_);
-        cudaEventSynchronize((cudaEvent_t) stop_);
+        checkRuntime(cudaEventRecord((cudaEvent_t) stop_, (cudaStream_t) stream_));
+        checkRuntime(cudaEventSynchronize((cudaEvent_t) stop_));
 
         float latency = 0;
-        cudaEventElapsedTime(&latency, (cudaEvent_t) start_, (cudaEvent_t) stop_);
+        checkRuntime(cudaEventElapsedTime(&latency, (cudaEvent_t) start_, (cudaEvent_t) stop_));
 
         if (print) {
             printf("[%s]: %.5f ms\n", prefix, latency);
@@ -117,7 +152,7 @@ namespace trt {
             release_gpu();
 
             gpu_capacity_ = bytes;
-            cudaMalloc(&gpu_, bytes);
+            checkRuntime(cudaMalloc(&gpu_, bytes));
         }
         gpu_bytes_ = bytes;
         return gpu_;
@@ -128,7 +163,8 @@ namespace trt {
             release_cpu();
 
             cpu_capacity_ = bytes;
-            cudaMallocHost(&cpu_, bytes);
+            checkRuntime(cudaMallocHost(&cpu_, bytes));
+            Assert(cpu_ != nullptr);
         }
         cpu_bytes_ = bytes;
         return cpu_;
@@ -137,7 +173,7 @@ namespace trt {
     void BaseMemory::release_cpu() {
         if (cpu_) {
             if (owner_cpu_) {
-                cudaFreeHost(cpu_);
+                checkRuntime(cudaFreeHost(cpu_));
             }
             cpu_ = nullptr;
         }
@@ -148,7 +184,7 @@ namespace trt {
     void BaseMemory::release_gpu() {
         if (gpu_) {
             if (owner_gpu_) {
-                cudaFree(gpu_);
+                checkRuntime(cudaFree(gpu_));
             }
             gpu_ = nullptr;
         }
@@ -213,15 +249,15 @@ namespace trt {
 
             if (pdata == nullptr || size == 0) return false;
 
-            runtime_ = shared_ptr<IRuntime>(createInferRuntime(gLogger), destroy_nvidia_pointer<IRuntime>);
+            runtime_ = shared_ptr<IRuntime>(createInferRuntime(gLogger), destroy_nvidia_pointer < IRuntime > );
             if (runtime_ == nullptr) return false;
 
             engine_ = shared_ptr<ICudaEngine>(runtime_->deserializeCudaEngine(pdata, size, nullptr),
-                                              destroy_nvidia_pointer<ICudaEngine>);
+                                              destroy_nvidia_pointer < ICudaEngine > );
             if (engine_ == nullptr) return false;
 
             context_ = shared_ptr<IExecutionContext>(engine_->createExecutionContext(),
-                                                     destroy_nvidia_pointer<IExecutionContext>);
+                                                     destroy_nvidia_pointer < IExecutionContext > );
             return context_ != nullptr;
         }
 
@@ -277,8 +313,8 @@ namespace trt {
 
         virtual int index(const std::string &name) override {
             auto iter = binding_name_to_index_.find(name);
-//            Assertf(iter != binding_name_to_index_.end(), "Can not found the binding name: %s",
-//                    name.c_str());
+            Assertf(iter != binding_name_to_index_.end(), "Can not found the binding name: %s",
+                    name.c_str());
             return iter->second;
         }
 

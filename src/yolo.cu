@@ -1,11 +1,27 @@
 #include "infer.h"
 #include "yolo.h"
 
-using namespace std;
-
 namespace yolo {
 
+    using namespace std;
+
 #define GPU_BLOCK_THREADS 1024
+#define checkRuntime(call)                                                                 \
+  do {                                                                                     \
+    auto ___call__ret_code__ = (call);                                                     \
+    if (___call__ret_code__ != cudaSuccess) {                                              \
+      INFO("CUDA Runtime error💥 %s # %s, code = %s [ %d ]", #call,                        \
+           cudaGetErrorString(___call__ret_code__), cudaGetErrorName(___call__ret_code__), \
+           ___call__ret_code__);                                                           \
+      abort();                                                                             \
+    }                                                                                      \
+  } while (0)
+
+#define checkKernel(...)                 \
+  do {                                   \
+    { (__VA_ARGS__); }                   \
+    checkRuntime(cudaPeekAtLastError()); \
+  } while (0)
 
     enum class NormType : int {
         None = 0, MeanStd = 1, AlphaBeta = 2
@@ -15,7 +31,7 @@ namespace yolo {
         None = 0, SwapRB = 1
     };
 
-    /* 归一化操作，可以支持均值标准差，alpha beta，和swap RB */
+/* 归一化操作，可以支持均值标准差，alpha beta，和swap RB */
     struct Norm {
         float mean[3];
         float std[3];
@@ -56,7 +72,8 @@ namespace yolo {
 
     Norm Norm::None() { return Norm(); }
 
-    const int NUM_BOX_ELEMENT = 8;  // left, top, right, bottom, confidence, class,
+    // left, top, right, bottom, confidence, class,
+    const int NUM_BOX_ELEMENT = 8;
     // keepflag, row_index(output)
     const int MAX_IMAGE_BOXES = 1024;
 
@@ -217,18 +234,18 @@ namespace yolo {
         auto block = block_dims(num_bboxes);
 
         if (type == Type::V8) {
-            decode_kernel_v8<<<grid, block, 0, stream>>>(
+            checkKernel(decode_kernel_v8<<<grid, block, 0, stream>>>(
                     predict, num_bboxes, num_classes, output_cdim, confidence_threshold, invert_affine_matrix,
-                    parray, MAX_IMAGE_BOXES);
+                    parray, MAX_IMAGE_BOXES));
         } else {
-            decode_kernel_common<<<grid, block, 0, stream>>>(
+            checkKernel(decode_kernel_common<<<grid, block, 0, stream>>>(
                     predict, num_bboxes, num_classes, output_cdim, confidence_threshold, invert_affine_matrix,
-                    parray, MAX_IMAGE_BOXES);
+                    parray, MAX_IMAGE_BOXES));
         }
 
         grid = grid_dims(MAX_IMAGE_BOXES);
         block = block_dims(MAX_IMAGE_BOXES);
-        fast_nms_kernel<<<grid, block, 0, stream>>>(parray, MAX_IMAGE_BOXES, nms_threshold);
+        checkKernel(fast_nms_kernel<<<grid, block, 0, stream>>>(parray, MAX_IMAGE_BOXES, nms_threshold));
     }
 
     static __global__ void warp_affine_bilinear_and_normalize_plane_kernel(
@@ -321,9 +338,9 @@ namespace yolo {
         dim3 grid((dst_width + 31) / 32, (dst_height + 31) / 32);
         dim3 block(32, 32);
 
-        warp_affine_bilinear_and_normalize_plane_kernel<<<grid, block, 0, stream>>>(
+        checkKernel(warp_affine_bilinear_and_normalize_plane_kernel<<<grid, block, 0, stream>>>(
                 src, src_line_size, src_width, src_height, dst, dst_width, dst_height, const_value,
-                matrix_2_3, norm);
+                matrix_2_3, norm));
     }
 
     struct AffineMatrix {
@@ -411,9 +428,10 @@ namespace yolo {
             cudaStream_t stream_ = (cudaStream_t) stream;
             memcpy(image_host, image.bgrptr, size_image);
             memcpy(affine_matrix_host, affine.d2i, sizeof(affine.d2i));
-            cudaMemcpyAsync(image_device, image_host, size_image, cudaMemcpyHostToDevice, stream_);
-            cudaMemcpyAsync(affine_matrix_device, affine_matrix_host, sizeof(affine.d2i),
-                            cudaMemcpyHostToDevice, stream_);
+            checkRuntime(
+                    cudaMemcpyAsync(image_device, image_host, size_image, cudaMemcpyHostToDevice, stream_));
+            checkRuntime(cudaMemcpyAsync(affine_matrix_device, affine_matrix_host, sizeof(affine.d2i),
+                                         cudaMemcpyHostToDevice, stream_));
 
             warp_affine_bilinear_and_normalize_plane(image_device, image.width * 3, image.width,
                                                      image.height, input_device, network_input_width_,
@@ -488,7 +506,6 @@ namespace yolo {
 
             float *bbox_output_device = bbox_predict_.gpu();
             vector<void *> bindings{input_buffer_.gpu(), bbox_output_device};
-
             if (!trt_->forward(bindings, stream)) {
                 INFO("Failed to tensorRT forward.");
                 return {};
@@ -500,17 +517,16 @@ namespace yolo {
                 float *affine_matrix_device = (float *) preprocess_buffers_[ib]->gpu();
                 float *image_based_bbox_output =
                         bbox_output_device + ib * (bbox_head_dims_[1] * bbox_head_dims_[2]);
-                cudaMemsetAsync(boxarray_device, 0, sizeof(int), stream_);
+                checkRuntime(cudaMemsetAsync(boxarray_device, 0, sizeof(int), stream_));
                 decode_kernel_invoker(image_based_bbox_output, bbox_head_dims_[1], num_classes_,
                                       bbox_head_dims_[2], confidence_threshold_, nms_threshold_,
                                       affine_matrix_device, boxarray_device, MAX_IMAGE_BOXES, type_, stream_);
             }
-            cudaMemcpyAsync(output_boxarray_.cpu(), output_boxarray_.gpu(),
-                            output_boxarray_.gpu_bytes(), cudaMemcpyDeviceToHost, stream_);
-            cudaStreamSynchronize(stream_);
+            checkRuntime(cudaMemcpyAsync(output_boxarray_.cpu(), output_boxarray_.gpu(),
+                                         output_boxarray_.gpu_bytes(), cudaMemcpyDeviceToHost, stream_));
+            checkRuntime(cudaStreamSynchronize(stream_));
 
             vector<BoxArray> arrout(num_image);
-            int imemory = 0;
             for (int ib = 0; ib < num_image; ++ib) {
                 float *parray = output_boxarray_.cpu() + ib * (32 + MAX_IMAGE_BOXES * NUM_BOX_ELEMENT);
                 int count = min(MAX_IMAGE_BOXES, (int) *parray);
@@ -526,7 +542,6 @@ namespace yolo {
                     }
                 }
             }
-
             return arrout;
         }
     };

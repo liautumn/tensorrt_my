@@ -7,8 +7,8 @@ using namespace std;
 
 class Config {
 public:
-    const string MODEL = R"(D:\autumn\Documents\JetBrainsProjects\CLion\tensorrt\workspace\model\engine\yolov8s.transd.engine)";
-    const string TEST_IMG = R"(D:\autumn\Documents\JetBrainsProjects\CLion\tensorrt\workspace\images\test_bl.jpg)";
+    const string MODEL = R"(D:\autumn\Documents\JetBrainsProjects\CLionProjects\tensorrt\workspace\model\engine\yolov8s.engine)";
+    const string TEST_IMG = R"(D:\autumn\Documents\JetBrainsProjects\CLionProjects\tensorrt\workspace\images\car.jpg)";
 
     const char *cocolabels[80] = {
             "person", "bicycle", "car",
