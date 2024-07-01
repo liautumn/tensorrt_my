@@ -19,7 +19,7 @@ void syncInfer() {
     while (true) {
         timer.start();
         auto objs = yolo->forward(image);
-        timer.stop("batch 1");
+        timer.stop("batch one");
     }
 }
 

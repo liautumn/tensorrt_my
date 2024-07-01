@@ -245,7 +245,9 @@ namespace yolo {
 
         grid = grid_dims(MAX_IMAGE_BOXES);
         block = block_dims(MAX_IMAGE_BOXES);
-        checkKernel(fast_nms_kernel<<<grid, block, 0, stream>>>(parray, MAX_IMAGE_BOXES, nms_threshold));
+        checkKernel(
+                fast_nms_kernel<<<grid, block, 0, stream>>>(parray, MAX_IMAGE_BOXES, nms_threshold)
+        );
     }
 
     static __global__ void warp_affine_bilinear_and_normalize_plane_kernel(
@@ -429,9 +431,12 @@ namespace yolo {
             memcpy(image_host, image.bgrptr, size_image);
             memcpy(affine_matrix_host, affine.d2i, sizeof(affine.d2i));
             checkRuntime(
-                    cudaMemcpyAsync(image_device, image_host, size_image, cudaMemcpyHostToDevice, stream_));
-            checkRuntime(cudaMemcpyAsync(affine_matrix_device, affine_matrix_host, sizeof(affine.d2i),
-                                         cudaMemcpyHostToDevice, stream_));
+                    cudaMemcpyAsync(image_device, image_host, size_image, cudaMemcpyHostToDevice, stream_)
+            );
+            checkRuntime(
+                    cudaMemcpyAsync(affine_matrix_device, affine_matrix_host, sizeof(affine.d2i),
+                                    cudaMemcpyHostToDevice, stream_)
+            );
 
             warp_affine_bilinear_and_normalize_plane(image_device, image.width * 3, image.width,
                                                      image.height, input_device, network_input_width_,
@@ -501,8 +506,9 @@ namespace yolo {
 
             vector<AffineMatrix> affine_matrixs(num_image);
             cudaStream_t stream_ = (cudaStream_t) stream;
-            for (int i = 0; i < num_image; ++i)
+            for (int i = 0; i < num_image; ++i) {
                 preprocess(i, images[i], preprocess_buffers_[i], affine_matrixs[i], stream);
+            }
 
             float *bbox_output_device = bbox_predict_.gpu();
             vector<void *> bindings{input_buffer_.gpu(), bbox_output_device};
