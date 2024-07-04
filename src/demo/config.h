@@ -7,7 +7,7 @@ using namespace std;
 
 class Config {
 public:
-    const string MODEL = R"(D:\autumn\Documents\JetBrainsProjects\CLionProjects\tensorrt\workspace\model\engine\yolov8s.engine)";
+    const string MODEL = R"(D:\autumn\Documents\JetBrainsProjects\CLionProjects\tensorrt_my\workspace\model\engine\yolov8s.engine)";
     const string TEST_IMG = R"(D:\autumn\Documents\JetBrainsProjects\CLionProjects\tensorrt\workspace\images\car.jpg)";
 };
 
