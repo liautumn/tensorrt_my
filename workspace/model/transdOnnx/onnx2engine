@@ -1,5 +1,6 @@
-D:\cuda\TensorRT-8.6.1.6\bin\trtexec.exe --onnx=D:/autumn/Documents/JetBrainsProjects/CLion/tensorrt/workspace/model/onnx/yolov8s.onnx --saveEngine=D:/autumn/Documents/JetBrainsProjects/CLion/tensorrt/workspace/model/engine/yolov8s.engine --fp16 --useCudaGraph --noTF32 --best
-
---minShapes=images:1x3x640x1024 --maxShapes=images:12x3x640x1024 --optShapes=images:1x3x640x1024
-
---minShapes=images:1x3x1024x1024 --maxShapes=images:12x3x1024x1024 --optShapes=images:1x3x1024x1024
+D:\cuda\TensorRT-8.6.1.6\bin\trtexec.exe
+--onnx=D:\autumn\Documents\JetBrainsProjects\CLionProjects\tensorrt_my\workspace\model\transdOnnx\yolov8s.transd.onnx
+--saveEngine=D:\autumn\Documents\JetBrainsProjects\CLionProjects\tensorrt_my\workspace\model\engine\yolov8s.engine
+--fp16 --useCudaGraph --noTF32 --best
+--minShapes=images:1x3x640x1024 --maxShapes=images:10x3x640x1024 --optShapes=images:10x3x640x1024
+--minShapes=images:1x3x1024x1024 --maxShapes=images:10x3x1024x1024 --optShapes=images:10x3x1024x1024

@@ -23,7 +23,7 @@ void syncInfer() {
     }
 }
 
-int main() {
-    syncInfer();
-    return 0;
-}
+//int main() {
+//    syncInfer();
+//    return 0;
+//}

@@ -7,10 +7,10 @@ set(CMAKE_CUDA_STANDARD 17)
 # 定义头文件目录
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-set(OpenCV_DIR D:/cuda/opencv/build)
+set(OpenCV_DIR "D:/cuda/opencv/build")
 find_package(OpenCV REQUIRED)
-set(TensorRT_DIR D:/cuda/TensorRT-8.6.1.6)
-set(CUDA_DIR C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.1)
+set(TensorRT_DIR "D:/cuda/TensorRT-8.6.1.6")
+set(CUDA_DIR "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.1")
 
 # 设置包含路径
 include_directories(
@@ -45,6 +45,7 @@ add_executable(${PROJECT_NAME}
         src/yolo.cu
         src/demo/config.h
         src/demo/main.cpp
+        src/demo/myMain.cu
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
